@@ -36,9 +36,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 /* SCAN */
 .cam-wrap{position:relative;flex:1;background:#000;overflow:hidden;min-height:0}
-#interactive{width:100%;height:100%;position:absolute;inset:0}
-#interactive video{width:100%!important;height:100%!important;object-fit:cover!important;position:absolute;inset:0}
-#interactive canvas{display:none!important}
+#video{width:100%;height:100%;object-fit:cover;display:block}
 .cam-idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg);z-index:10}
 .cam-idle-ring{width:88px;height:88px;border-radius:50%;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:38px;background:var(--adim)}
 .cam-idle p{font-size:13px;color:var(--text2);text-align:center;max-width:200px;line-height:1.5}
@@ -52,11 +50,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .ov-box .c2::before{bottom:0;left:0;border-width:0 0 2.5px 2.5px}
 .ov-box .c2::after{bottom:0;right:0;border-width:0 2.5px 2.5px 0}
 .ov-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 2s ease-in-out infinite}
-@keyframes scan{0%{top:5%;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:95%;opacity:0}}
-.ov-hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:.1em;z-index:5}
-.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .06s;z-index:6}
-.flash.on{opacity:.4}
-.btn-cam-stop{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:var(--mono);z-index:10}
+@keyframes scan{0%{top:5%;opacity:.4}50%{opacity:1}100%{top:95%;opacity:.4}}
+.ov-hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:.1em;z-index:5}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .05s;z-index:6}
+.flash.on{opacity:.45}
+.btn-cam-stop{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:var(--mono);z-index:10}
 
 .res{background:var(--bg);border-top:1px solid var(--border);flex-shrink:0;max-height:54%;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .res-idle{padding:18px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em}
@@ -132,19 +130,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .prog-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s}
 .prog-txt{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap}
 
-/* TOAST */
 .toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 20px;border-radius:24px;font-size:13px;font-family:var(--mono);opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;z-index:200}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.ok{border-color:rgba(0,240,160,.35);color:var(--accent)}
 .toast.er{border-color:rgba(255,68,102,.35);color:var(--red)}
 
-/* NAV */
 .nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px);flex-shrink:0}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:7px 4px 5px;cursor:pointer;color:var(--text3);transition:color .2s;font-size:10px;gap:3px}
 .nav-item.active{color:var(--accent)}
 .nav-item .ni{font-size:21px}
 
-/* LOADING */
 .loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:300;gap:16px;transition:opacity .35s}
 .loading.out{opacity:0;pointer-events:none}
 .loading-logo{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--accent);letter-spacing:.1em}
@@ -161,7 +156,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 <div class="loading" id="loader">
   <div class="loading-logo">STOCK<em>SCAN</em></div>
-  <div class="spin" id="loaderSpin"></div>
+  <div class="spin"></div>
   <div class="loading-txt" id="loaderTxt">INICIANDO...</div>
   <div class="loading-prog" id="loaderProg"><div class="loading-prog-fill" id="loaderFill"></div></div>
 </div>
@@ -172,7 +167,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="pill" id="onlinePill"><div class="dot"></div><span id="onlineTxt">—</span></div>
   </div>
 
-  <!-- SCAN -->
   <div class="page active" id="pgScan">
     <div class="cam-wrap">
       <div class="cam-idle" id="camIdle">
@@ -180,7 +174,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <p>Activá la cámara para escanear códigos de barras</p>
         <button class="btn-main" onclick="startCam()">ACTIVAR CÁMARA</button>
       </div>
-      <div id="interactive"></div>
+      <video id="video" playsinline autoplay muted></video>
       <div class="ov" id="ov" style="display:none">
         <div class="ov-box"><div class="c2"></div><div class="ov-line"></div></div>
       </div>
@@ -194,7 +188,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
   </div>
 
-  <!-- SEARCH -->
   <div class="page" id="pgSearch">
     <div class="srch-wrap">
       <div class="srch-box">
@@ -209,14 +202,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
   </div>
 
-  <!-- HISTORY -->
   <div class="page" id="pgHistory">
     <div class="hist-list" id="histList">
       <div class="hist-empty"><div class="eico">🕐</div>Sin escaneos recientes</div>
     </div>
   </div>
 
-  <!-- CONFIG -->
   <div class="page" id="pgConfig">
     <div class="cfg-scroll">
       <div class="cfg-sec">
@@ -226,6 +217,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <div><div class="cfg-lbl">Precio/Stock online</div><div class="cfg-sub">Consultar API al escanear</div></div>
             <label style="cursor:pointer">
               <input type="checkbox" id="cfgOnline" onchange="saveOnline(this.checked)" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
+            </label>
+          </div>
+          <div class="cfg-row">
+            <div><div class="cfg-lbl">Sonido al escanear</div><div class="cfg-sub">Beep cuando se detecta un código</div></div>
+            <label style="cursor:pointer">
+              <input type="checkbox" id="cfgBeep" onchange="saveBeep(this.checked)" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
             </label>
           </div>
         </div>
@@ -257,7 +254,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="cfg-sec">
         <div class="cfg-title">⚙️ General</div>
         <div class="cfg-card">
-          <div class="cfg-row"><div class="cfg-lbl">Versión</div><div class="cfg-val">3.1.0</div></div>
+          <div class="cfg-row"><div class="cfg-lbl">Versión</div><div class="cfg-val">3.2.0</div></div>
           <div class="cfg-row col">
             <button class="btn-danger" onclick="clearHistory()" style="width:100%">🗑 Borrar historial</button>
           </div>
@@ -276,10 +273,36 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 <div class="toast" id="toast"></div>
 
-<!-- Quagga2 — mejor soporte EAN-13 en móvil -->
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
-
 <script>
+// ══════════════════════════════════════════════
+// BEEP — Web Audio API (no necesita archivo)
+// ══════════════════════════════════════════════
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function beep() {
+  if (localStorage.getItem('ss_beep') === 'false') return;
+  try {
+    initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // Beep corto tipo pistola de supermercado
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type      = 'sine';
+    osc.frequency.setValueAtTime(1800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1400, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.12);
+  } catch(e) {}
+}
+
 // ══════════════════════════════════════════════
 // INDEXEDDB
 // ══════════════════════════════════════════════
@@ -347,8 +370,7 @@ function dbMeta(key, val) {
 function dbGetByBC(code) {
   return new Promise((res, rej) => {
     const tx  = db.transaction('prods', 'readonly');
-    const idx = tx.objectStore('prods').index('bc');
-    const r   = idx.get(code);
+    const r   = tx.objectStore('prods').index('bc').get(code);
     r.onsuccess = e => res(e.target.result || null);
     r.onerror   = e => rej(e.target.error);
   });
@@ -389,7 +411,7 @@ function dbCount() {
 }
 
 // ══════════════════════════════════════════════
-// CATÁLOGO JSON ESTÁTICO
+// CATÁLOGO
 // ══════════════════════════════════════════════
 async function downloadCatalog(silent = false) {
   if (!silent) {
@@ -403,15 +425,11 @@ async function downloadCatalog(silent = false) {
   try {
     const resp = await fetch('/productos.json?v=' + Date.now());
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
     if (!silent) setDlProg(40, 'Procesando...');
     else setLoaderProg(40);
-
     const data = await resp.json();
-
     if (!silent) setDlProg(60, 'Guardando...');
     else { setLoaderProg(60); setLoaderTxt('GUARDANDO EN DISPOSITIVO...'); }
-
     await dbClear();
     const CHUNK = 2000;
     for (let i = 0; i < data.length; i += CHUNK) {
@@ -422,16 +440,14 @@ async function downloadCatalog(silent = false) {
       else setLoaderProg(pct);
       await sleep(0);
     }
-
-    const ts = new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const ts = new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     await dbMeta('date', ts);
     await dbMeta('count', data.length);
-
     if (!silent) {
-      setDlProg(100, '¡Listo!');
-      setTimeout(() => document.getElementById('dlProg').classList.remove('show'), 1500);
+      setDlProg(100,'¡Listo!');
+      setTimeout(()=>document.getElementById('dlProg').classList.remove('show'),1500);
       await refreshCfgInfo();
-      showToast(`✅ ${data.length.toLocaleString()} productos cargados`, 'ok');
+      showToast(`✅ ${data.length.toLocaleString()} productos cargados`,'ok');
     } else {
       setLoaderProg(100);
       setLoaderTxt(`✓ ${data.length.toLocaleString()} productos listos`);
@@ -450,7 +466,7 @@ function setLoaderTxt(t){ document.getElementById('loaderTxt').textContent=t; }
 function setLoaderProg(p){ document.getElementById('loaderFill').style.width=p+'%'; }
 
 // ══════════════════════════════════════════════
-// XML PARSER — precio/stock tiempo real
+// XML PARSER
 // ══════════════════════════════════════════════
 function parseProductoXML(xmlText) {
   try {
@@ -467,113 +483,86 @@ function parseProductoXML(xmlText) {
 }
 
 // ══════════════════════════════════════════════
-// QUAGGA2 — escáner EAN-13
+// CÁMARA — BarcodeDetector nativo
 // ══════════════════════════════════════════════
-let quaggaRunning = false;
-let lastCode = null;
+let camStream  = null;
+let detecting  = false;
+let lastCode   = null;
+let detector   = null;
 
 async function startCam() {
-  document.getElementById('camIdle').style.display = 'none';
-  document.getElementById('ov').style.display      = 'flex';
-  document.getElementById('ovHint').style.display  = 'block';
-  document.getElementById('btnStop').style.display = 'block';
+  // Inicializar audio al primer toque (requerido por browsers)
+  initAudio();
 
-  const camWrap = document.querySelector('.cam-wrap');
-  const h = camWrap.offsetHeight;
-
-  Quagga.init({
-    inputStream: {
-      name: 'Live',
-      type: 'LiveStream',
-      target: document.getElementById('interactive'),
-      constraints: {
-        width:  { min: 640, ideal: 1280 },
-        height: { min: 480, ideal: 720 },
-        facingMode: 'environment',
-        aspectRatio: { ideal: 1.7 }
-      },
-      area: {
-        top:    '25%',
-        right:  '10%',
-        left:   '10%',
-        bottom: '25%'
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
       }
-    },
-    locator: {
-      patchSize: 'medium',
-      halfSample: true
-    },
-    numOfWorkers: 2,
-    frequency: 10,
-    decoder: {
-      readers: [
-        'ean_reader',        // EAN-13 — el más común en farmacias
-        'ean_8_reader',      // EAN-8
-        'code_128_reader',   // Code 128
-        'upc_reader',        // UPC-A
-        'upc_e_reader',      // UPC-E
-        'code_39_reader',    // Code 39
-      ],
-      multiple: false
-    },
-    locate: true
-  }, err => {
-    if (err) {
-      console.error('Quagga init error:', err);
-      showToast('❌ Error de cámara: ' + err.message, 'er');
-      stopCam();
-      return;
+    });
+    const video = document.getElementById('video');
+    video.srcObject = camStream;
+    await video.play();
+
+    document.getElementById('camIdle').style.display = 'none';
+    document.getElementById('ov').style.display      = 'flex';
+    document.getElementById('ovHint').style.display  = 'block';
+    document.getElementById('btnStop').style.display = 'block';
+
+    // Iniciar BarcodeDetector
+    if ('BarcodeDetector' in window) {
+      detector = new BarcodeDetector({
+        formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
+      });
+      detecting = true;
+      detectLoop();
+    } else {
+      showToast('⚠ Tu navegador no soporta BarcodeDetector','er');
     }
-    Quagga.start();
-    quaggaRunning = true;
-  });
+  } catch(e) {
+    showToast('❌ Sin permiso de cámara','er');
+  }
+}
 
-  // Filtro de confianza — solo acepta lecturas consistentes
-  const recentCodes = [];
-  Quagga.onDetected(async result => {
-    const code = result.codeResult.code;
-    const err  = result.codeResult.decodedCodes
-      .filter(x => x.error !== undefined)
-      .reduce((a, x) => a + x.error, 0);
-
-    // Solo procesar si el error de decodificación es bajo
-    if (err > 0.25) return;
-
-    recentCodes.push(code);
-    if (recentCodes.length > 3) recentCodes.shift();
-
-    // Confirmar si los últimos 2 son iguales (evita falsos positivos)
-    const confirmed = recentCodes.length >= 2 &&
-      recentCodes[recentCodes.length-1] === recentCodes[recentCodes.length-2];
-
-    if (confirmed && code !== lastCode) {
-      lastCode = code;
-      doFlash();
-      await handleBarcode(code);
-      setTimeout(() => { lastCode = null; recentCodes.length = 0; }, 3000);
+async function detectLoop() {
+  if (!detecting) return;
+  const video = document.getElementById('video');
+  try {
+    if (video.readyState >= 2) {
+      const barcodes = await detector.detect(video);
+      if (barcodes.length > 0) {
+        const code = barcodes[0].rawValue;
+        if (code && code !== lastCode) {
+          lastCode = code;
+          doFlash();
+          beep();
+          await handleBarcode(code);
+          setTimeout(() => lastCode = null, 3000);
+        }
+      }
     }
-  });
+  } catch(e) {}
+  requestAnimationFrame(detectLoop);
 }
 
 function stopCam() {
-  if (quaggaRunning) {
-    try { Quagga.stop(); } catch(e) {}
-    quaggaRunning = false;
-  }
-  lastCode = null;
+  detecting = false;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  const video = document.getElementById('video');
+  video.srcObject = null;
   document.getElementById('camIdle').style.display = 'flex';
   document.getElementById('ov').style.display      = 'none';
   document.getElementById('ovHint').style.display  = 'none';
   document.getElementById('btnStop').style.display = 'none';
-  // Limpiar el elemento interactive
-  const el = document.getElementById('interactive');
-  el.innerHTML = '';
+  lastCode = null;
 }
 
 function doFlash() {
   const f = document.getElementById('flash');
   f.classList.add('on');
-  setTimeout(() => f.classList.remove('on'), 150);
+  setTimeout(() => f.classList.remove('on'), 120);
 }
 
 // ══════════════════════════════════════════════
@@ -616,7 +605,6 @@ function showResult(type, code, prod, source, precio, stock, precioSinIva) {
     content.innerHTML = `<div class="not-found"><div class="nf-code">${code}</div><div class="nf-txt">No encontrado en el catálogo</div></div>`;
     return;
   }
-
   const p  = parseFloat(precio)||0;
   const si = parseFloat(precioSinIva)||0;
   const st = parseInt(stock)??0;
@@ -732,12 +720,14 @@ function gotoPage(name) {
 async function refreshCfgInfo() {
   const count = await dbMeta('count');
   const date  = await dbMeta('date');
-  document.getElementById('cfgCount').textContent = count ? parseInt(count).toLocaleString()+' productos' : '—';
-  document.getElementById('cfgDate').textContent  = date || '—';
+  document.getElementById('cfgCount').textContent = count?parseInt(count).toLocaleString()+' productos':'—';
+  document.getElementById('cfgDate').textContent  = date||'—';
   document.getElementById('cfgOnline').checked    = localStorage.getItem('ss_online') !== 'false';
+  document.getElementById('cfgBeep').checked      = localStorage.getItem('ss_beep')   !== 'false';
 }
 
 function saveOnline(v){ localStorage.setItem('ss_online',v); }
+function saveBeep(v)  { localStorage.setItem('ss_beep',v);   }
 
 async function clearLocalDB(){
   if(!confirm('¿Borrar base local?'))return;
@@ -761,11 +751,11 @@ function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 async function init() {
   setLoaderTxt('ABRIENDO BASE DE DATOS...');
   try { db = await openDB(); } catch(e) { setLoaderTxt('ERROR: '+e.message); return; }
-
   updateOnlineStatus();
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
   if (localStorage.getItem('ss_online')===null) localStorage.setItem('ss_online','true');
+  if (localStorage.getItem('ss_beep')===null)   localStorage.setItem('ss_beep','true');
 
   const count = await dbCount();
   if (count === 0) {
@@ -775,7 +765,6 @@ async function init() {
     setLoaderTxt(`✓ ${count.toLocaleString()} PRODUCTOS LISTOS`);
     await sleep(400);
   }
-
   document.getElementById('loader').classList.add('out');
   setTimeout(() => document.getElementById('loader').style.display='none', 400);
 }
