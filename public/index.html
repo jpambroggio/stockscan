@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080810">
+<title>StockScan</title>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080810;--bg2:#0f0f1c;--bg3:#161625;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --accent:#00f0a0;--adim:rgba(0,240,160,0.1);--adim2:rgba(0,240,160,0.05);
+  --text:#eeeef8;--text2:#7a7a9a;--text3:#44445a;
+  --red:#ff4466;--amber:#ffaa00;
+  --mono:'IBM Plex Mono',monospace;--sans:'DM Sans',sans-serif;
+  --r:14px;--rs:9px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 18px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+.hdr-logo{font-family:var(--mono);font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+.hdr-logo em{color:var(--text3);font-style:normal;font-weight:400}
+.pill{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border)}
+.pill .dot{width:6px;height:6px;border-radius:50%}
+.pill.on{color:var(--accent);border-color:rgba(0,240,160,0.25);background:var(--adim2)}
+.pill.on .dot{background:var(--accent);box-shadow:0 0 5px var(--accent)}
+.pill.off{color:var(--amber);border-color:rgba(255,170,0,0.2)}
+.pill.off .dot{background:var(--amber)}
+.page{display:none;flex:1;overflow:hidden;flex-direction:column;min-height:0}
+.page.active{display:flex}
+
+/* SCAN */
+.cam-wrap{position:relative;flex:1;background:#000;overflow:hidden;min-height:0}
+#video{width:100%;height:100%;object-fit:cover;display:none}
+.cam-idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg)}
+.cam-idle-ring{width:88px;height:88px;border-radius:50%;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:38px;background:var(--adim)}
+.cam-idle p{font-size:13px;color:var(--text2);text-align:center;max-width:200px;line-height:1.5}
+.btn-main{background:var(--accent);color:#000;border:none;border-radius:var(--rs);padding:13px 32px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:all .15s}
+.btn-main:active{transform:scale(.96)}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.ov-box{width:70%;aspect-ratio:2.8/1;position:relative}
+.ov-box::before,.ov-box::after,.ov-box .c2::before,.ov-box .c2::after{content:'';position:absolute;width:22px;height:22px;border-color:var(--accent);border-style:solid}
+.ov-box::before{top:0;left:0;border-width:2.5px 0 0 2.5px}
+.ov-box::after{top:0;right:0;border-width:2.5px 2.5px 0 0}
+.ov-box .c2::before{bottom:0;left:0;border-width:0 0 2.5px 2.5px}
+.ov-box .c2::after{bottom:0;right:0;border-width:0 2.5px 2.5px 0}
+.ov-line{position:absolute;left:2px;right:2px;height:1.5px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 2s ease-in-out infinite}
+@keyframes scan{0%{top:5%;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:95%;opacity:0}}
+.ov-hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:.1em}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .06s}
+.flash.on{opacity:.35}
+.btn-cam-stop{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:var(--mono);z-index:5}
+.res{background:var(--bg);border-top:1px solid var(--border);flex-shrink:0;max-height:54%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.res-idle{padding:18px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em}
+.pcard{padding:16px 18px;animation:up .22s ease}
+@keyframes up{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.pcard-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.pcard-name{font-size:15px;font-weight:600;color:var(--text);line-height:1.3;flex:1}
+.pcard-price{text-align:right;flex-shrink:0}
+.pcard-price .big{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)}
+.pcard-price .small{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:1px}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.tag{padding:3px 9px;border-radius:20px;font-size:11px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.tag.hi{background:var(--adim);color:var(--accent);border-color:rgba(0,240,160,.2)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.sbox{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);padding:9px 12px}
+.sbox-lbl{font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:.06em;margin-bottom:3px;text-transform:uppercase}
+.sbox-val{font-size:20px;font-weight:600;font-family:var(--mono)}
+.sbox-val.ok{color:var(--accent)}.sbox-val.low{color:var(--amber)}.sbox-val.zero{color:var(--red)}
+.pcard-bc{font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;padding-top:9px;border-top:1px solid var(--border);letter-spacing:.1em}
+.src-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:20px;margin-bottom:8px}
+.src-badge.live{background:var(--adim);color:var(--accent);border:1px solid rgba(0,240,160,.2)}
+.src-badge.local{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.2)}
+.src-badge .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+.not-found{padding:20px;text-align:center}
+.nf-code{font-family:var(--mono);font-size:18px;color:var(--red);letter-spacing:.12em;margin-bottom:6px}
+.nf-txt{font-size:13px;color:var(--text3)}
+
+/* SEARCH */
+.srch-wrap{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.srch-box{display:flex;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);padding:0 12px;gap:8px;transition:border-color .2s}
+.srch-box:focus-within{border-color:var(--accent)}
+.srch-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--sans);font-size:15px;padding:11px 0;-webkit-user-select:text;user-select:text}
+.srch-input::placeholder{color:var(--text3)}
+.srch-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.srch-empty{padding:40px 20px;text-align:center;color:var(--text3);font-size:13px}
+.srch-empty .eico{font-size:38px;margin-bottom:10px}
+.sri{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;transition:background .12s}
+.sri:active{background:var(--bg2)}
+.sri-left{flex:1;min-width:0}
+.sri-name{font-size:13px;font-weight:500;color:var(--text);line-height:1.3}
+.sri-sub{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.sri-price{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap}
+
+/* HISTORY */
+.hist-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.hist-empty{padding:60px 20px;text-align:center;color:var(--text3);font-size:13px}
+.hist-empty .eico{font-size:44px;margin-bottom:10px}
+.hi-item{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s}
+.hi-item:active{background:var(--bg2)}
+.hi-ico{width:34px;height:34px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.hi-info{flex:1;min-width:0}
+.hi-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hi-meta{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.hi-price{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap}
+
+/* CONFIG */
+.cfg-scroll{flex:1;overflow-y:auto;padding:18px 14px;-webkit-overflow-scrolling:touch}
+.cfg-sec{margin-bottom:22px}
+.cfg-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;margin-bottom:10px;padding-left:2px}
+.cfg-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.cfg-row{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cfg-row:last-child{border-bottom:none}
+.cfg-row.col{flex-direction:column;align-items:flex-start;gap:9px}
+.cfg-lbl{font-size:14px;color:var(--text)}
+.cfg-sub{font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4}
+.cfg-val{font-family:var(--mono);font-size:12px;color:var(--accent);text-align:right;max-width:150px;word-break:break-all}
+.cfg-inp{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:12px;width:100%;outline:none;-webkit-user-select:text;user-select:text}
+.cfg-inp:focus{border-color:var(--accent)}
+.btn-sec{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:var(--rs);padding:9px 16px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;width:100%;text-align:center}
+.btn-sec:active{transform:scale(.95)}
+.btn-danger{background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.25);color:var(--red);border-radius:var(--rs);padding:9px 16px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s}
+.btn-danger:active{transform:scale(.95)}
+.btn-accent{background:var(--adim);border:1px solid rgba(0,240,160,.25);color:var(--accent);border-radius:var(--rs);padding:9px 16px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-accent:active{transform:scale(.95)}
+
+/* PROGRESS */
+.prog-wrap{display:none;padding:10px 15px;gap:10px;align-items:center;background:var(--adim2);border-top:1px solid rgba(0,240,160,.12);width:100%}
+.prog-wrap.show{display:flex}
+.prog-bar{flex:1;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s}
+.prog-txt{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap;min-width:60px;text-align:right}
+
+/* FIRST RUN BANNER */
+.banner{margin:12px 14px;background:var(--adim);border:1px solid rgba(0,240,160,.2);border-radius:var(--r);padding:14px 16px;display:none}
+.banner.show{display:block}
+.banner-title{font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:6px;font-weight:600}
+.banner-txt{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px}
+
+/* TOAST */
+.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 20px;border-radius:24px;font-size:13px;font-family:var(--mono);opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;z-index:200}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:rgba(0,240,160,.35);color:var(--accent)}
+.toast.er{border-color:rgba(255,68,102,.35);color:var(--red)}
+
+/* NAV */
+.nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px);flex-shrink:0}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:7px 4px 5px;cursor:pointer;color:var(--text3);transition:color .2s;font-size:10px;gap:3px}
+.nav-item.active{color:var(--accent)}
+.nav-item .ni{font-size:21px}
+
+/* LOADING */
+.loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:300;gap:16px;transition:opacity .35s}
+.loading.out{opacity:0;pointer-events:none}
+.loading-logo{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--accent);letter-spacing:.1em}
+.loading-logo em{color:var(--text3);font-style:normal;font-weight:400}
+.spin{width:28px;height:28px;border:2px solid var(--bg3);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loading-txt{font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em;text-align:center;max-width:260px;line-height:1.6}
+.loading-prog{width:220px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;display:none}
+.loading-prog.show{display:block}
+.loading-prog-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loader">
+  <div class="loading-logo">STOCK<em>SCAN</em></div>
+  <div class="spin" id="loaderSpin"></div>
+  <div class="loading-txt" id="loaderTxt">INICIANDO...</div>
+  <div class="loading-prog" id="loaderProg">
+    <div class="loading-prog-fill" id="loaderFill"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="hdr">
+    <div class="hdr-logo">STOCK<em>SCAN</em></div>
+    <div class="pill" id="onlinePill"><div class="dot"></div><span id="onlineTxt">—</span></div>
+  </div>
+
+  <!-- SCAN -->
+  <div class="page active" id="pgScan">
+    <div class="cam-wrap">
+      <div class="cam-idle" id="camIdle">
+        <div class="cam-idle-ring">📷</div>
+        <p>Activá la cámara para escanear códigos de barras</p>
+        <button class="btn-main" onclick="startCam()">ACTIVAR CÁMARA</button>
+      </div>
+      <video id="video" playsinline autoplay muted></video>
+      <div class="ov" id="ov" style="display:none"><div class="ov-box"><div class="c2"></div><div class="ov-line"></div></div></div>
+      <div class="ov-hint" id="ovHint" style="display:none">APUNTÁ AL CÓDIGO DE BARRAS</div>
+      <div class="flash" id="flash"></div>
+      <button class="btn-cam-stop" id="btnStop" style="display:none" onclick="stopCam()">✕ Cerrar</button>
+    </div>
+    <div class="res" id="res">
+      <div class="res-idle" id="resIdle">— esperando escaneo —</div>
+      <div id="resContent" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="page" id="pgSearch">
+    <div class="srch-wrap">
+      <div class="srch-box">
+        <input class="srch-input" id="srchInput" type="search"
+          placeholder="🔍  Nombre o código de barras..."
+          oninput="doSearch(this.value)"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="srch-list" id="srchList">
+      <div class="srch-empty"><div class="eico">🔎</div>Buscá por nombre o código</div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="pgHistory">
+    <div class="hist-list" id="histList">
+      <div class="hist-empty"><div class="eico">🕐</div>Sin escaneos recientes</div>
+    </div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="page" id="pgConfig">
+    <div class="cfg-scroll">
+
+      <div class="cfg-sec">
+        <div class="cfg-title">🌐 API tiempo real</div>
+        <div class="cfg-card">
+          <div class="cfg-row">
+            <div><div class="cfg-lbl">Precio/Stock en tiempo real</div><div class="cfg-sub">Consultar precio y stock al escanear</div></div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="cfgOnline" onchange="saveOnline(this.checked)" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sec">
+        <div class="cfg-title">📦 Base de datos local</div>
+        <div class="cfg-card">
+          <div class="cfg-row">
+            <div><div class="cfg-lbl">Productos cargados</div><div class="cfg-sub">Índice local para búsqueda offline</div></div>
+            <div class="cfg-val" id="cfgCount">—</div>
+          </div>
+          <div class="cfg-row">
+            <div><div class="cfg-lbl">Versión del catálogo</div><div class="cfg-sub">Fecha del archivo productos.json</div></div>
+            <div class="cfg-val" id="cfgDate">—</div>
+          </div>
+          <div class="cfg-row col">
+            <div>
+              <div class="cfg-lbl">Actualizar catálogo</div>
+              <div class="cfg-sub">Descarga el catálogo actualizado desde el servidor. Solo necesario cuando el administrador sube uno nuevo.</div>
+            </div>
+            <div style="display:flex;gap:8px;width:100%">
+              <button class="btn-accent" onclick="downloadCatalog()" style="flex:1">⬇ Descargar catálogo</button>
+              <button class="btn-danger" onclick="clearLocalDB()">🗑</button>
+            </div>
+            <div class="prog-wrap" id="dlProg">
+              <div class="prog-bar"><div class="prog-fill" id="dlFill"></div></div>
+              <div class="prog-txt" id="dlTxt">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sec">
+        <div class="cfg-title">⚙️ General</div>
+        <div class="cfg-card">
+          <div class="cfg-row"><div class="cfg-lbl">Versión app</div><div class="cfg-val">3.0.0</div></div>
+          <div class="cfg-row col">
+            <button class="btn-danger" onclick="clearHistory()" style="width:100%">🗑 Borrar historial</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item active" id="nScan"    onclick="gotoPage('Scan')"   ><span class="ni">📷</span>Escanear</div>
+    <div class="nav-item"        id="nSearch"  onclick="gotoPage('Search')" ><span class="ni">🔍</span>Buscar</div>
+    <div class="nav-item"        id="nHistory" onclick="gotoPage('History')"><span class="ni">🕐</span>Historial</div>
+    <div class="nav-item"        id="nConfig"  onclick="gotoPage('Config')" ><span class="ni">⚙️</span>Config</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// INDEXEDDB
+// ══════════════════════════════════════════════
+let db = null;
+
+async function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('stockscan_v4', 1);
+    r.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('prods')) {
+        const s = d.createObjectStore('prods', { keyPath: 'i' });
+        s.createIndex('bc', 'b', { multiEntry: true });
+        s.createIndex('nl', 'nl', {});
+      }
+      // metadata store
+      if (!d.objectStoreNames.contains('meta')) {
+        d.createObjectStore('meta', { keyPath: 'k' });
+      }
+    };
+    r.onsuccess = e => res(e.target.result);
+    r.onerror   = e => rej(e.target.error);
+  });
+}
+
+function dbClear() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('prods', 'readwrite');
+    tx.objectStore('prods').clear();
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
+
+function dbPutBatch(arr) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('prods', 'readwrite');
+    const s  = tx.objectStore('prods');
+    let i = 0;
+    function next() {
+      while (i < arr.length) {
+        const req = s.put(arr[i++]);
+        if (i % 500 === 0) { req.onsuccess = next; return; }
+      }
+    }
+    tx.oncomplete = res; tx.onerror = rej;
+    next();
+  });
+}
+
+function dbMeta(key, val) {
+  if (val !== undefined) {
+    return new Promise((res, rej) => {
+      const tx = db.transaction('meta', 'readwrite');
+      tx.objectStore('meta').put({ k: key, v: val });
+      tx.oncomplete = res; tx.onerror = rej;
+    });
+  }
+  return new Promise((res) => {
+    const tx = db.transaction('meta', 'readonly');
+    const r  = tx.objectStore('meta').get(key);
+    r.onsuccess = e => res(e.target.result ? e.target.result.v : null);
+    r.onerror   = () => res(null);
+  });
+}
+
+function dbGetByBC(code) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction('prods', 'readonly');
+    const idx = tx.objectStore('prods').index('bc');
+    const r   = idx.get(code);
+    r.onsuccess = e => res(e.target.result || null);
+    r.onerror   = e => rej(e.target.error);
+  });
+}
+
+function dbGetById(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('prods', 'readonly');
+    const r  = tx.objectStore('prods').get(id);
+    r.onsuccess = e => res(e.target.result || null);
+    r.onerror   = e => rej(e.target.error);
+  });
+}
+
+function dbSearch(q) {
+  return new Promise((res, rej) => {
+    const tx      = db.transaction('prods', 'readonly');
+    const results = [];
+    const ql      = q.toLowerCase();
+    const r       = tx.objectStore('prods').openCursor();
+    r.onsuccess = e => {
+      const c = e.target.result;
+      if (!c) return res(results);
+      if (c.value.nl && c.value.nl.includes(ql)) {
+        results.push(c.value);
+        if (results.length >= 50) return res(results);
+      }
+      c.continue();
+    };
+    r.onerror = e => rej(e.target.error);
+  });
+}
+
+function dbCount() {
+  return new Promise(res => {
+    const tx = db.transaction('prods', 'readonly');
+    const r  = tx.objectStore('prods').count();
+    r.onsuccess = e => res(e.target.result);
+    r.onerror   = () => res(0);
+  });
+}
+
+// ══════════════════════════════════════════════
+// DESCARGAR CATÁLOGO (productos.json estático)
+// ══════════════════════════════════════════════
+async function downloadCatalog(silent = false) {
+  if (!silent) {
+    document.getElementById('dlProg').classList.add('show');
+    setDlProg(10, 'Descargando...');
+  } else {
+    setLoaderTxt('DESCARGANDO CATÁLOGO...\n(primera vez, ~5MB)');
+    document.getElementById('loaderProg').classList.add('show');
+    setLoaderProg(10);
+  }
+
+  try {
+    // Forzar no-cache para obtener versión fresca
+    const resp = await fetch('/productos.json?v=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.statusCode);
+
+    if (!silent) setDlProg(40, 'Procesando...');
+    else setLoaderProg(40);
+
+    const data = await resp.json();
+
+    if (!silent) setDlProg(60, 'Guardando...');
+    else { setLoaderProg(60); setLoaderTxt('GUARDANDO EN DISPOSITIVO...'); }
+
+    // Agregar campo nl (nombre lowercase) para búsqueda
+    const CHUNK = 2000;
+    await dbClear();
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const chunk = data.slice(i, i + CHUNK).map(p => ({ ...p, nl: (p.n || '').toLowerCase() }));
+      await dbPutBatch(chunk);
+      const pct = 60 + Math.round((i / data.length) * 35);
+      if (!silent) setDlProg(pct, `${Math.min(i + CHUNK, data.length).toLocaleString()} prods...`);
+      else setLoaderProg(pct);
+      await sleep(0);
+    }
+
+    const ts = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    await dbMeta('date', ts);
+    await dbMeta('count', data.length);
+
+    if (!silent) {
+      setDlProg(100, '¡Listo!');
+      setTimeout(() => document.getElementById('dlProg').classList.remove('show'), 1500);
+      await refreshCfgInfo();
+      showToast(`✅ ${data.length.toLocaleString()} productos cargados`, 'ok');
+    } else {
+      setLoaderProg(100);
+      setLoaderTxt(`✓ ${data.length.toLocaleString()} productos cargados`);
+    }
+
+    return true;
+  } catch(e) {
+    if (!silent) {
+      setDlProg(0, 'Error');
+      setTimeout(() => document.getElementById('dlProg').classList.remove('show'), 2000);
+      showToast('❌ Error descargando catálogo', 'er');
+    } else {
+      setLoaderTxt('❌ Error: ' + e.message);
+    }
+    return false;
+  }
+}
+
+function setDlProg(pct, txt) {
+  document.getElementById('dlFill').style.width = pct + '%';
+  document.getElementById('dlTxt').textContent  = txt;
+}
+
+function setLoaderTxt(t)  { document.getElementById('loaderTxt').textContent  = t; }
+function setLoaderProg(p) { document.getElementById('loaderFill').style.width = p + '%'; }
+
+// ══════════════════════════════════════════════
+// XML PARSER para precio/stock en tiempo real
+// ══════════════════════════════════════════════
+function parseProductoXML(xmlText) {
+  try {
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.querySelector('parsererror')) return null;
+    const get = tag => { const el = doc.getElementsByTagNameNS('*', tag)[0]; return el ? el.textContent.trim() : ''; };
+    if (get('Baja').toLowerCase() === 'true') return null;
+    return {
+      precio:      parseFloat(get('precio'))        || 0,
+      stock:       parseInt(get('stockSucursal'))   || 0,
+      precioSinIva:parseFloat(get('precioSinIVA'))  || 0,
+    };
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════
+// CÁMARA
+// ══════════════════════════════════════════════
+let codeReader = null, lastCode = null, camStream = null;
+
+async function startCam() {
+  try {
+    const video  = document.getElementById('video');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } } });
+    camStream = stream;
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('camIdle').style.display = 'none';
+    document.getElementById('ov').style.display      = 'flex';
+    document.getElementById('ovHint').style.display  = 'block';
+    document.getElementById('btnStop').style.display = 'block';
+
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    codeReader.decodeFromVideoElement(video, async (result, err) => {
+      if (result) {
+        const code = result.getText();
+        if (code !== lastCode) {
+          lastCode = code;
+          doFlash();
+          await handleBarcode(code);
+          setTimeout(() => lastCode = null, 2500);
+        }
+      }
+    });
+  } catch(e) {
+    showToast('❌ Sin permiso de cámara', 'er');
+  }
+}
+
+function stopCam() {
+  if (codeReader)  { try { codeReader.reset(); } catch(e) {} }
+  if (camStream)   { camStream.getTracks().forEach(t => t.stop()); }
+  codeReader = null; camStream = null; lastCode = null;
+  const video = document.getElementById('video');
+  video.srcObject = null; video.style.display = 'none';
+  document.getElementById('camIdle').style.display = 'flex';
+  document.getElementById('ov').style.display      = 'none';
+  document.getElementById('ovHint').style.display  = 'none';
+  document.getElementById('btnStop').style.display = 'none';
+}
+
+function doFlash() {
+  const f = document.getElementById('flash');
+  f.classList.add('on');
+  setTimeout(() => f.classList.remove('on'), 120);
+}
+
+// ══════════════════════════════════════════════
+// BARCODE HANDLER
+// ══════════════════════════════════════════════
+async function handleBarcode(code) {
+  gotoPage('Scan');
+  showResult('loading', code);
+
+  // 1. Buscar en IndexedDB (offline)
+  let prod = null;
+  try { prod = await dbGetByBC(code); } catch(e) {}
+
+  // 2. Consultar API en tiempo real para precio/stock
+  const useOnline = localStorage.getItem('ss_online') !== 'false';
+  let precio = 0, stock = 0, precioSinIva = 0, source = 'local';
+
+  if (useOnline && navigator.onLine && prod) {
+    try {
+      const r = await fetch(`/.netlify/functions/proxy/${prod.i}`, { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        const fresh = parseProductoXML(await r.text());
+        if (fresh) {
+          precio      = fresh.precio;
+          stock       = fresh.stock;
+          precioSinIva= fresh.precioSinIva;
+          source      = 'live';
+        }
+      }
+    } catch(e) {}
+  }
+
+  showResult('product', code, prod, source, precio, stock, precioSinIva);
+  if (prod) addHistory(prod, code, precio, stock);
+}
+
+function showResult(type, code, prod, source, precio, stock, precioSinIva) {
+  document.getElementById('resIdle').style.display    = 'none';
+  document.getElementById('resContent').style.display = 'block';
+  const content = document.getElementById('resContent');
+
+  if (type === 'loading') {
+    content.innerHTML = `<div style="padding:20px;text-align:center"><div class="spin" style="margin:0 auto"></div><div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:10px">BUSCANDO ${code}...</div></div>`;
+    return;
+  }
+  if (!prod) {
+    content.innerHTML = `<div class="not-found"><div class="nf-code">${code}</div><div class="nf-txt">No encontrado en el catálogo local</div></div>`;
+    return;
+  }
+
+  const p  = parseFloat(precio)      || 0;
+  const si = parseFloat(precioSinIva)|| 0;
+  const st = parseInt(stock)         ?? 0;
+  const sc = st > 10 ? 'ok' : st > 0 ? 'low' : 'zero';
+  const sl = st > 10 ? '✓ En stock' : st > 0 ? '⚠ Bajo' : '✗ Sin stock';
+  const badge = source === 'live'
+    ? `<span class="src-badge live"><span class="d"></span>TIEMPO REAL</span>`
+    : `<span class="src-badge local"><span class="d"></span>SIN CONEXIÓN</span>`;
+  const tags = [prod.c, prod.r !== prod.c ? prod.r : '', prod.l].filter(Boolean);
+  const allBc = Array.isArray(prod.b) ? prod.b.join(' · ') : code;
+
+  content.innerHTML = `
+  <div class="pcard">
+    ${badge}
+    <div class="pcard-top">
+      <div class="pcard-name">${prod.n}</div>
+      <div class="pcard-price">
+        <div class="big">${p > 0 ? '$' + fmtNum(p) : '—'}</div>
+        ${si > 0 ? `<div class="small">s/IVA $${fmtNum(si)}</div>` : ''}
+      </div>
+    </div>
+    <div class="tags">
+      ${tags.map(t => `<span class="tag">${t}</span>`).join('')}
+      ${prod.t ? `<span class="tag">Troquel: ${prod.t}</span>` : ''}
+      ${prod.g ? `<span class="tag hi">${prod.g.substring(0,60)}${prod.g.length>60?'…':''}</span>` : ''}
+    </div>
+    <div class="stats">
+      <div class="sbox"><div class="sbox-lbl">STOCK</div><div class="sbox-val ${sc}">${source==='live'?st:'—'}</div></div>
+      <div class="sbox"><div class="sbox-lbl">ESTADO</div><div class="sbox-val ${sc}" style="font-size:14px;padding-top:4px">${source==='live'?sl:'Sin conexión'}</div></div>
+    </div>
+    <div class="pcard-bc">▐ ${allBc} ▌</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════
+let srchTimer = null;
+async function doSearch(q) {
+  clearTimeout(srchTimer);
+  const el = document.getElementById('srchList');
+  if (!q.trim()) { el.innerHTML = `<div class="srch-empty"><div class="eico">🔎</div>Buscá por nombre o código</div>`; return; }
+  srchTimer = setTimeout(async () => {
+    let results = [];
+    if (/^\d{6,}$/.test(q.trim())) {
+      try { const p = await dbGetByBC(q.trim()); if (p) results = [p]; } catch(e) {}
+    } else {
+      try { results = await dbSearch(q); } catch(e) {}
+    }
+    if (!results.length) { el.innerHTML = `<div class="srch-empty"><div class="eico">😕</div>Sin resultados para "${q}"</div>`; return; }
+    el.innerHTML = results.map(p => `
+      <div class="sri" onclick="selectSearchProd('${p.i}')">
+        <div class="sri-left">
+          <div class="sri-name">${p.n}</div>
+          <div class="sri-sub">${p.l || p.c || ''}</div>
+        </div>
+        <div class="sri-price">→</div>
+      </div>`).join('');
+  }, 250);
+}
+
+async function selectSearchProd(id) {
+  const p = await dbGetById(id);
+  if (!p) return;
+  await handleBarcode((p.b || [])[0] || '');
+}
+
+// ══════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════
+const HK = 'ss_hist_v3';
+function getHistory() { try { return JSON.parse(localStorage.getItem(HK) || '[]'); } catch { return []; } }
+
+function addHistory(p, code, precio, stock) {
+  let h = getHistory().filter(x => x.id !== p.i);
+  h.unshift({ id: p.id, nombre: p.n, precio, stock, code, ts: new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' }) });
+  if (h.length > 50) h = h.slice(0, 50);
+  localStorage.setItem(HK, JSON.stringify(h));
+}
+
+function renderHistory() {
+  const h  = getHistory();
+  const el = document.getElementById('histList');
+  if (!h.length) { el.innerHTML = `<div class="hist-empty"><div class="eico">🕐</div>Sin escaneos recientes</div>`; return; }
+  el.innerHTML = h.map(item => {
+    const st = parseInt(item.stock) || 0;
+    const sc = st > 10 ? 'var(--accent)' : st > 0 ? 'var(--amber)' : 'var(--red)';
+    const pr = item.precio > 0 ? `$${fmtNum(item.precio)}` : '—';
+    return `<div class="hi-item" onclick="handleBarcode('${item.code}')">
+      <div class="hi-ico">📦</div>
+      <div class="hi-info">
+        <div class="hi-name">${item.nombre}</div>
+        <div class="hi-meta">${item.code} · ${item.ts}</div>
+      </div>
+      <div class="hi-price">${pr}</div>
+    </div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  if (!confirm('¿Borrar historial?')) return;
+  localStorage.removeItem(HK);
+  renderHistory();
+  showToast('Historial borrado');
+}
+
+// ══════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════
+function gotoPage(name) {
+  ['Scan','Search','History','Config'].forEach(p => {
+    document.getElementById('pg' + p).classList.toggle('active', p === name);
+    document.getElementById('n'  + p).classList.toggle('active', p === name);
+  });
+  if (name === 'History') renderHistory();
+  if (name === 'Config')  refreshCfgInfo();
+}
+
+// ══════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════
+async function refreshCfgInfo() {
+  const count = await dbMeta('count');
+  const date  = await dbMeta('date');
+  document.getElementById('cfgCount').textContent = count ? parseInt(count).toLocaleString() + ' productos' : '—';
+  document.getElementById('cfgDate').textContent  = date || '—';
+  document.getElementById('cfgOnline').checked    = localStorage.getItem('ss_online') !== 'false';
+}
+
+function saveOnline(v) { localStorage.setItem('ss_online', v); }
+
+async function clearLocalDB() {
+  if (!confirm('¿Borrar la base de datos local?')) return;
+  await dbClear();
+  await dbMeta('count', 0);
+  await dbMeta('date', null);
+  await refreshCfgInfo();
+  showToast('Base borrada');
+}
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function fmtNum(n) { return (parseFloat(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function showToast(msg, type='') { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type; setTimeout(()=>t.className='toast '+type,3000); }
+function updateOnlineStatus() {
+  const on = navigator.onLine;
+  const pill = document.getElementById('onlinePill');
+  pill.className = 'pill ' + (on ? 'on' : 'off');
+  document.getElementById('onlineTxt').textContent = on ? 'ONLINE' : 'OFFLINE';
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+async function init() {
+  setLoaderTxt('ABRIENDO BASE DE DATOS...');
+  try { db = await openDB(); } catch(e) { setLoaderTxt('ERROR: ' + e.message); return; }
+
+  updateOnlineStatus();
+  window.addEventListener('online',  updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  if (localStorage.getItem('ss_online') === null) localStorage.setItem('ss_online', 'true');
+
+  // Verificar si hay datos locales
+  const count = await dbCount();
+
+  if (count === 0) {
+    // Primera vez: descargar catálogo automáticamente
+    await downloadCatalog(true);
+    await sleep(800);
+  } else {
+    setLoaderTxt(`✓ ${count.toLocaleString()} PRODUCTOS LISTOS`);
+    await sleep(400);
+  }
+
+  document.getElementById('loader').classList.add('out');
+  setTimeout(() => document.getElementById('loader').style.display = 'none', 400);
+}
+
+init();
+</script>
+</body>
+</html>
