@@ -902,7 +902,7 @@ async function init() {
   window.addEventListener('online',  updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
 
-  if (!localStorage.getItem('ss_api'))    localStorage.setItem('ss_api', '/api/productos/');
+  if (!localStorage.getItem('ss_api')) localStorage.setItem('ss_api', '/.netlify/functions/proxy/');
   if (localStorage.getItem('ss_online') === null) localStorage.setItem('ss_online', 'true');
 
   await sleep(500);
