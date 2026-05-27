@@ -4,10 +4,20 @@ const API_HOST = '190.231.99.243';
 const API_PORT = 60063;
 
 exports.handler = async (event) => {
-  // Extraer el ID del producto de la URL
-  // /api/productos/18 → id = 18
-  const path = event.path.replace('/.netlify/functions/proxy', '');
-  const apiPath = '/api/productos' + path;
+  // Con el redirect /:splat, el path llega como parámetro
+  // event.path = /.netlify/functions/proxy/18
+  // event.queryStringParameters.id no existe
+  // Necesitamos extraer el ID del final del path
+  
+  const fullPath = event.path || '';
+  
+  // Extraer todo lo que viene después de /proxy/
+  const match = fullPath.match(/\/proxy\/(.*)/);
+  const idPart = match ? match[1] : fullPath.replace('/.netlify/functions/proxy', '');
+  
+  const apiPath = '/api/productos/' + idPart;
+
+  console.log('Proxy request:', apiPath);
 
   return new Promise((resolve) => {
     const options = {
@@ -34,10 +44,8 @@ exports.handler = async (event) => {
     });
 
     req.on('error', (e) => {
-      resolve({
-        statusCode: 502,
-        body: 'API no disponible: ' + e.message
-      });
+      console.error('Error:', e.message);
+      resolve({ statusCode: 502, body: 'API no disponible: ' + e.message });
     });
 
     req.setTimeout(6000, () => {
