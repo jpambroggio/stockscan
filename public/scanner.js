@@ -1,75 +1,176 @@
 // ══════════════════════════════════════════════
 // SCANNER UNIVERSAL
-// Android/Chrome → BarcodeDetector nativo
-// iPhone/Safari  → ZXing via canvas
+// Android/Chrome  → BarcodeDetector nativo
+// iPhone/Safari   → cámara nativa via input file
 // ══════════════════════════════════════════════
 
-let camStream  = null;
-let detecting  = false;
-let lastCode   = null;
-let detector   = null;
-let zxingReader = null;
-let scanMethod  = null; // 'native' | 'zxing'
+let camStream   = null;
+let detecting   = false;
+let lastCode    = null;
+let detector    = null;
+let scanMethod  = null;
 
+const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+const hasBarcodeDetector = 'BarcodeDetector' in window;
+
+// ── Iniciar escáner según dispositivo ──
 async function startCam() {
   initAudio();
 
+  if (isiOS || !hasBarcodeDetector) {
+    // iPhone / Safari → input file con cámara nativa
+    startIOSScanner();
+  } else {
+    // Android / Chrome → BarcodeDetector nativo
+    await startNativeScanner();
+  }
+}
+
+// ══════════════════════════════════════════════
+// MÉTODO iOS — input type=file capture
+// ══════════════════════════════════════════════
+function startIOSScanner() {
+  scanMethod = 'ios';
+
+  // Mostrar UI especial para iOS
+  document.getElementById('camIdle').style.display  = 'none';
+  document.getElementById('ov').style.display       = 'none';
+  document.getElementById('ovHint').style.display   = 'none';
+  document.getElementById('btnStop').style.display  = 'block';
+
+  // Mostrar panel iOS
+  const iosPanel = document.getElementById('iosPanel');
+  if (iosPanel) iosPanel.style.display = 'flex';
+
+  // Preparar BarcodeDetector para decodificar la foto
+  if (hasBarcodeDetector) {
+    detector = new BarcodeDetector({
+      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
+    });
+  }
+}
+
+async function capturarFotoIOS() {
+  const input = document.getElementById('iosInput');
+  input.click();
+}
+
+async function procesarFotoIOS(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+
+  img.onload = async () => {
+    URL.revokeObjectURL(url);
+    let code = null;
+
+    // Intentar con BarcodeDetector primero (más rápido si está disponible)
+    if (detector) {
+      try {
+        const barcodes = await detector.detect(img);
+        if (barcodes.length > 0) code = barcodes[0].rawValue;
+      } catch(e) {}
+    }
+
+    // Si no, usar ZXing en canvas
+    if (!code) {
+      code = await decodeWithCanvas(img);
+    }
+
+    if (code) {
+      doFlash(); beep();
+      await handleBarcode(code);
+    } else {
+      showToast('No se detectó código — intentá de nuevo', 'er');
+    }
+
+    // Limpiar input para poder volver a capturar
+    input.value = '';
+  };
+
+  img.src = url;
+}
+
+async function decodeWithCanvas(img) {
+  return new Promise(res => {
+    try {
+      const canvas  = document.createElement('canvas');
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      if (typeof ZXing === 'undefined') {
+        // Cargar ZXing dinámicamente
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
+        script.onload = async () => {
+          const result = await zxingDecode(canvas);
+          res(result);
+        };
+        document.head.appendChild(script);
+      } else {
+        zxingDecode(canvas).then(res);
+      }
+    } catch(e) { res(null); }
+  });
+}
+
+async function zxingDecode(canvas) {
   try {
-    // iPhone necesita constraints más simples
-    const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const reader = new ZXing.BrowserMultiFormatReader(hints);
+    const result = await reader.decodeFromCanvas(canvas);
+    return result ? result.getText() : null;
+  } catch(e) { return null; }
+}
 
-    const constraints = isiOS
-      ? { video: { facingMode: { ideal: 'environment' } } }
-      : { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
-
-    camStream = await navigator.mediaDevices.getUserMedia(constraints);
+// ══════════════════════════════════════════════
+// MÉTODO NATIVO — BarcodeDetector (Android)
+// ══════════════════════════════════════════════
+async function startNativeScanner() {
+  scanMethod = 'native';
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
 
     const video = document.getElementById('video');
     video.srcObject = camStream;
-
-    // iPhone requiere que el video esté en el DOM visible y con atributos específicos
     video.setAttribute('playsinline', true);
-    video.setAttribute('autoplay', true);
-    video.setAttribute('muted', true);
     video.muted = true;
-
-    await new Promise((res, rej) => {
-      video.onloadedmetadata = () => {
-        video.play().then(res).catch(rej);
-      };
-      setTimeout(rej, 5000); // timeout
-    });
+    await video.play();
 
     document.getElementById('camIdle').style.display = 'none';
     document.getElementById('ov').style.display      = 'flex';
     document.getElementById('ovHint').style.display  = 'block';
     document.getElementById('btnStop').style.display = 'block';
 
-    // Elegir método
-    if ('BarcodeDetector' in window) {
-      scanMethod = 'native';
-      detector = new BarcodeDetector({
-        formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
-      });
-      detecting = true;
-      detectLoopNative();
-    } else {
-      // iOS / Safari / browsers sin BarcodeDetector → ZXing
-      scanMethod = 'zxing';
-      startZXing(video);
-    }
+    detector = new BarcodeDetector({
+      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
+    });
+    detecting = true;
+    detectLoopNative();
 
   } catch(e) {
     let msg = '❌ Error de cámara';
-    if (e.name === 'NotAllowedError')  msg = '❌ Permiso de cámara denegado';
-    if (e.name === 'NotFoundError')    msg = '❌ No se encontró cámara';
-    if (e.name === 'NotReadableError') msg = '❌ Cámara en uso por otra app';
+    if (e.name === 'NotAllowedError')  msg = '❌ Permiso denegado';
+    if (e.name === 'NotFoundError')    msg = '❌ Sin cámara trasera';
+    if (e.name === 'NotReadableError') msg = '❌ Cámara en uso';
     showToast(msg, 'er');
     resetCamUI();
   }
 }
 
-// ── MÉTODO 1: BarcodeDetector nativo (Android/Chrome) ──
 async function detectLoopNative() {
   if (!detecting) return;
   const video = document.getElementById('video');
@@ -90,56 +191,11 @@ async function detectLoopNative() {
   requestAnimationFrame(detectLoopNative);
 }
 
-// ── MÉTODO 2: ZXing (iOS/Safari) ──
-function startZXing(video) {
-  if (typeof ZXing === 'undefined') {
-    // Cargar ZXing dinámicamente
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
-    script.onload  = () => initZXing(video);
-    script.onerror = () => showToast('❌ Error cargando escáner', 'er');
-    document.head.appendChild(script);
-  } else {
-    initZXing(video);
-  }
-}
-
-function initZXing(video) {
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.UPC_A,
-    ZXing.BarcodeFormat.UPC_E,
-    ZXing.BarcodeFormat.CODE_128,
-    ZXing.BarcodeFormat.CODE_39,
-  ]);
-
-  zxingReader = new ZXing.BrowserMultiFormatReader(hints, 300);
-  detecting = true;
-
-  zxingReader.decodeFromVideoElement(video, async (result, err) => {
-    if (!detecting) return;
-    if (result) {
-      const code = result.getText();
-      if (code && code !== lastCode) {
-        lastCode = code;
-        doFlash(); beep();
-        await handleBarcode(code);
-        setTimeout(() => lastCode = null, 3000);
-      }
-    }
-  });
-}
-
+// ══════════════════════════════════════════════
+// STOP
+// ══════════════════════════════════════════════
 function stopCam() {
   detecting = false;
-
-  if (scanMethod === 'zxing' && zxingReader) {
-    try { zxingReader.reset(); } catch(e) {}
-    zxingReader = null;
-  }
 
   if (camStream) {
     camStream.getTracks().forEach(t => t.stop());
@@ -147,12 +203,18 @@ function stopCam() {
   }
 
   const video = document.getElementById('video');
-  video.srcObject = null;
-  video.load(); // importante en iOS para liberar la cámara
+  if (video.srcObject) {
+    video.srcObject = null;
+    video.load();
+  }
+
+  const iosPanel = document.getElementById('iosPanel');
+  if (iosPanel) iosPanel.style.display = 'none';
 
   resetCamUI();
-  lastCode = null;
+  lastCode   = null;
   scanMethod = null;
+  detector   = null;
 }
 
 function resetCamUI() {
