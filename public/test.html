@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Cámara iOS</title>
+<style>
+body{font-family:monospace;background:#000;color:#0f0;padding:16px;font-size:13px}
+video{width:100%;max-height:50vh;display:block;margin:10px 0}
+#log{white-space:pre-wrap;margin-top:10px;font-size:12px}
+button{background:#0f0;color:#000;border:none;padding:12px 20px;font-size:14px;font-weight:bold;border-radius:8px;margin:5px;width:100%}
+</style>
+</head>
+<body>
+<div id="log">Tocá START para comenzar...\n</div>
+<button onclick="startTest()">▶ START</button>
+<video id="v" playsinline autoplay muted webkit-playsinline></video>
+<button onclick="testDetect()" id="btnDetect" style="display:none">🔍 DETECTAR AHORA</button>
+
+<script>
+const log = t => { document.getElementById('log').textContent += t + '\n'; };
+const v = document.getElementById('v');
+let detector = null;
+
+async function startTest(){
+  log('UA: ' + navigator.userAgent.substring(0,80));
+  log('BarcodeDetector: ' + ('BarcodeDetector' in window ? 'SI ✓' : 'NO ✗'));
+  log('getUserMedia: ' + (!!navigator.mediaDevices?.getUserMedia ? 'SI ✓' : 'NO ✗'));
+
+  if('BarcodeDetector' in window){
+    try{
+      const formats = await BarcodeDetector.getSupportedFormats();
+      log('Formatos: ' + formats.join(', '));
+      detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','code_128']});
+    }catch(e){ log('Error BarcodeDetector: ' + e.message); }
+  }
+
+  log('\nAbriendo cámara...');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    v.srcObject = stream;
+    await v.play();
+    log('✓ Cámara OK — resolución: ' + v.videoWidth + 'x' + v.videoHeight);
+    document.getElementById('btnDetect').style.display = 'block';
+
+    // Auto-detect loop
+    if(detector){
+      log('Iniciando detección automática...');
+      autoDetect();
+    } else {
+      log('Sin BarcodeDetector — solo detección manual');
+    }
+  }catch(e){
+    log('Error cámara: ' + e.name + ' — ' + e.message);
+  }
+}
+
+async function autoDetect(){
+  if(v.readyState < 2){ requestAnimationFrame(autoDetect); return; }
+  try{
+    const r = await detector.detect(v);
+    if(r.length > 0){
+      log('✓✓✓ DETECTADO: ' + r[0].rawValue + ' (' + r[0].format + ')');
+    }
+  }catch(e){ log('Error detect: ' + e.message); }
+  setTimeout(autoDetect, 300);
+}
+
+async function testDetect(){
+  if(!detector){ log('Sin BarcodeDetector'); return; }
+  log('Detectando...');
+  try{
+    const r = await detector.detect(v);
+    log(r.length > 0 ? '✓ DETECTADO: ' + r[0].rawValue : 'Sin código visible');
+  }catch(e){ log('Error: ' + e.message); }
+}
+</script>
+</body>
+</html>
