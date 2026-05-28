@@ -225,7 +225,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <p>Activá la cámara para escanear códigos de barras</p>
         <button class="btn-main" onclick="startCam()">ACTIVAR CÁMARA</button>
       </div>
-      <video id="video" playsinline autoplay muted></video>
+      <video id="video" playsinline autoplay muted webkit-playsinline x5-playsinline style="display:block"></video>
       <div id="iosPanel">
         <div class="ios-icon">📸</div>
         <div class="ios-title">ESCANEAR CÓDIGO</div>
@@ -511,43 +511,54 @@ let camStream=null, detecting=false, lastCode=null, detector=null, zxingActive=f
 
 async function startCam(){
   initAudio();
-  try{
-    // Pedir cámara — funciona en Android e iPhone
-    camStream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:{ideal:'environment'},
-        width:{ideal:1280},
-        height:{ideal:720}
-      }
-    });
-    const video=document.getElementById('video');
-    video.srcObject=camStream;
-    video.setAttribute('playsinline','true'); // crucial para iOS
-    video.muted=true;
-    await video.play();
 
-    document.getElementById('camIdle').style.display='none';
-    document.getElementById('iosPanel').style.display='none';
-    document.getElementById('ov').style.display='flex';
-    document.getElementById('ovHint').style.display='block';
-    document.getElementById('btnStop').style.display='block';
+  const video=document.getElementById('video');
 
-    if('BarcodeDetector' in window){
-      // Android o iOS17+ — detector nativo
-      detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
-      detecting=true;
-      detectLoop();
-    } else {
-      // iOS más viejo — ZXing en tiempo real
-      await startZXingLive(video);
-    }
-  }catch(e){
-    let msg='❌ Error de cámara';
-    if(e.name==='NotAllowedError') msg='❌ Permiso de cámara denegado — habilitalo en Ajustes';
-    if(e.name==='NotFoundError')   msg='❌ No se encontró cámara';
-    if(e.name==='NotReadableError') msg='❌ Cámara en uso por otra app';
-    showToast(msg,'er');
-    resetCamUI();
+  // Constraints simples primero — iOS es muy estricto
+  const constraints=[
+    {video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}},
+    {video:{facingMode:'environment'}},
+    {video:{facingMode:{ideal:'environment'}}},
+    {video:true}
+  ];
+
+  let stream=null;
+  for(const c of constraints){
+    try{ stream=await navigator.mediaDevices.getUserMedia(c); break; }catch(e){}
+  }
+
+  if(!stream){
+    showToast('❌ No se pudo acceder a la cámara','er');
+    resetCamUI(); return;
+  }
+
+  camStream=stream;
+  video.srcObject=stream;
+  video.setAttribute('playsinline','true');
+  video.setAttribute('autoplay','true');
+  video.setAttribute('muted','true');
+  video.muted=true;
+  video.playsInline=true;
+
+  // iOS necesita interacción para play — ya la tenemos del tap
+  try{ await video.play(); }catch(e){
+    // Intentar sin await
+    video.play().catch(()=>{});
+    await sleep(500);
+  }
+
+  document.getElementById('camIdle').style.display='none';
+  document.getElementById('iosPanel').style.display='none';
+  document.getElementById('ov').style.display='flex';
+  document.getElementById('ovHint').style.display='block';
+  document.getElementById('btnStop').style.display='block';
+
+  if('BarcodeDetector' in window){
+    detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
+    detecting=true;
+    detectLoop();
+  } else {
+    await startZXingLive(video);
   }
 }
 
