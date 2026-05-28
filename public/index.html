@@ -231,7 +231,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="ios-title">ESCANEAR CÓDIGO</div>
         <div class="ios-sub">Apuntá la cámara al código de barras y tomá la foto</div>
         <button class="ios-btn" onclick="capturarFoto()">📷 Tomar foto</button>
-        <div class="ios-hint">Mantené el celular firme y bien iluminado</div>
+        <div class="ios-hint">Encuadrá solo el código, buena luz, sin sombras</div>
         <input type="file" id="iosInput" accept="image/*" capture="environment" style="display:none" onchange="procesarFoto(this)">
       </div>
       <div class="ov" id="ov" style="display:none"><div class="ov-box"><div class="c2"></div><div class="ov-line"></div></div></div>
@@ -560,33 +560,71 @@ function capturarFoto(){ document.getElementById('iosInput').click(); }
 
 async function procesarFoto(input){
   const file=input.files[0]; if(!file) return;
-  const img=new Image();
-  const url=URL.createObjectURL(file);
-  img.onload=async()=>{
-    URL.revokeObjectURL(url);
-    let code=null;
-    // Intentar BarcodeDetector en imagen
-    if(detector){ try{ const r=await detector.detect(img); if(r.length>0) code=r[0].rawValue; }catch(e){} }
-    // Fallback ZXing en canvas
+  showToast('Procesando imagen...','');
+
+  // Cargar imagen
+  const img=await new Promise((res,rej)=>{
+    const i=new Image();
+    i.onload=()=>res(i);
+    i.onerror=rej;
+    i.src=URL.createObjectURL(file);
+  });
+
+  let code=null;
+
+  // Intentar múltiples escalas para mejorar detección
+  const scales=[1, 1.5, 0.75, 2];
+  for(const scale of scales){
+    if(code) break;
+
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(img.naturalWidth*scale);
+    canvas.height=Math.round(img.naturalHeight*scale);
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+    // 1. BarcodeDetector en canvas (iOS 17+)
+    if(detector){
+      try{
+        const r=await detector.detect(canvas);
+        if(r.length>0){ code=r[0].rawValue; break; }
+      }catch(e){}
+    }
+
+    // 2. BarcodeDetector en imagen original
+    if(!code && detector && scale===1){
+      try{
+        const r=await detector.detect(img);
+        if(r.length>0){ code=r[0].rawValue; break; }
+      }catch(e){}
+    }
+
+    // 3. ZXing
     if(!code){
       try{
-        const canvas=document.createElement('canvas');
-        canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
-        canvas.getContext('2d').drawImage(img,0,0);
         if(typeof ZXing==='undefined'){
           await new Promise(res=>{ const s=document.createElement('script'); s.src='https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js'; s.onload=res; document.head.appendChild(s); });
         }
-        const hints=new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+        const hints=new Map();
+        hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
+          ZXing.BarcodeFormat.EAN_13,
+          ZXing.BarcodeFormat.EAN_8,
+          ZXing.BarcodeFormat.UPC_A,
+          ZXing.BarcodeFormat.CODE_128,
+        ]);
         const reader=new ZXing.BrowserMultiFormatReader(hints);
         const result=await reader.decodeFromCanvas(canvas);
-        if(result) code=result.getText();
+        if(result){ code=result.getText(); break; }
       }catch(e){}
     }
-    if(code){ doFlash(); beep(); await handleBarcode(code); }
-    else showToast('No se detectó código — intentá de nuevo','er');
-    input.value='';
-  };
-  img.src=url;
+  }
+
+  URL.revokeObjectURL(img.src);
+
+  if(code){ doFlash(); beep(); await handleBarcode(code); }
+  else showToast('No detectado — mejor luz y encuadre','er');
+  input.value='';
 }
 
 function stopCam(){
