@@ -382,7 +382,7 @@ async function activar(){
   btn.innerHTML = '<div class="act-spin"></div>';
 
   try{
-    const r = await fetch(`/.netlify/functions/activar?code=${code}`);
+    const r = await fetch(`/api/activar?code=${code}`);
     const d = await r.json();
     if(d.ok){
       localStorage.setItem('ss_code',   d.code);
@@ -494,13 +494,39 @@ function setLoaderProg(p){ document.getElementById('loaderFill').style.width=p+'
 // ══════════════════════════════════════════════
 // XML PARSER
 // ══════════════════════════════════════════════
-function parseProductoXML(xmlText){
+function parseProductoJSON(data, full=false){
   try{
-    const doc=new DOMParser().parseFromString(xmlText,'application/xml');
-    if(doc.querySelector('parsererror')) return null;
-    const get=tag=>{ const el=doc.getElementsByTagNameNS('*',tag)[0]; return el?el.textContent.trim():''; };
-    if(get('Baja').toLowerCase()==='true') return null;
-    return{ precio:parseFloat(get('precio'))||0, stock:parseInt(get('stockSucursal'))||0, precioSinIva:parseFloat(get('precioSinIVA'))||0 };
+    const p = typeof data === 'string' ? JSON.parse(data) : data;
+    if(!p || p.Baja === true) return null;
+
+    const base = {
+      precio:      parseFloat(p.precio)      || 0,
+      stock:       parseInt(p.stockSucursal) || 0,
+      precioSinIva:parseFloat(p.precioSinIVA)|| 0,
+    };
+    if(!full) return base;
+
+    // Códigos de barras — puede ser string o array
+    const barcodes = Array.isArray(p.codigoBarras)
+      ? p.codigoBarras.filter(Boolean)
+      : p.codigoBarras ? [p.codigoBarras] : [];
+
+    // Drogas — puede ser string o array
+    const drogas = Array.isArray(p.nombresDrogas)
+      ? p.nombresDrogas.join(', ')
+      : p.nombresDrogas || '';
+
+    return{
+      ...base,
+      id:       String(p.idProducto || ''),
+      nombre:   p.descripcion   || '',
+      categoria:p.categoria     || '',
+      rubro:    p.rubro         || '',
+      lab:      p.laboratorio   || '',
+      troquel:  String(p.troquel|| ''),
+      drogas,
+      barcodes
+    };
   }catch(e){ return null; }
 }
 
@@ -514,21 +540,37 @@ function parseProductoXML(xmlText){
 async function handleBarcode(code){
   gotoPage('Scan');
   showResult('loading',code);
+
   let prod=null;
   try{ prod=await dbGetByBC(code); }catch(e){}
 
   let precio=0, stock=0, precioSinIva=0, source='offline';
   const farmCode=localStorage.getItem('ss_code');
 
-  // Solo consultar stock si hay conexión
-  if(navigator.onLine && prod && farmCode){
-    try{
-      const r=await fetch(`/.netlify/functions/stock?code=${farmCode}&id=${prod.i}`,{signal:AbortSignal.timeout(5000)});
-      if(r.ok){
-        const fresh=parseProductoXML(await r.text());
-        if(fresh){ precio=fresh.precio; stock=fresh.stock; precioSinIva=fresh.precioSinIva; source='live'; }
-      }
-    }catch(e){}
+  if(navigator.onLine && farmCode){
+    if(prod){
+      // Producto encontrado en local → consultar precio/stock en tiempo real
+      try{
+        const r=await fetch(`/api/stock?code=${farmCode}&id=${prod.i}`,{signal:AbortSignal.timeout(5000)});
+        if(r.ok){
+          const fresh=parseProductoJSON(await r.text());
+          if(fresh){ precio=fresh.precio; stock=fresh.stock; precioSinIva=fresh.precioSinIva; source='live'; }
+        }
+      }catch(e){}
+    } else {
+      // No está en local → buscar en API por código de barras (instantáneo)
+      try{
+        const r=await fetch(`/api/buscar?code=${farmCode}&barcode=${code}`,{signal:AbortSignal.timeout(8000)});
+        if(r.ok){
+          const fresh=parseProductoJSON(await r.text(), true);
+          if(fresh && fresh.nombre){
+            prod={ i:fresh.id, b:fresh.barcodes.length?fresh.barcodes:[code], n:fresh.nombre, c:fresh.categoria, r:fresh.rubro, l:fresh.lab, t:fresh.troquel, g:fresh.drogas };
+            precio=fresh.precio; stock=fresh.stock; precioSinIva=fresh.precioSinIva;
+            source='live_only';
+          }
+        }
+      }catch(e){}
+    }
   }
 
   showResult('product',code,prod,source,precio,stock,precioSinIva);
@@ -552,12 +594,14 @@ function showResult(type,code,prod,source,precio,stock,precioSinIva){
   const p=parseFloat(precio)||0;
   const si=parseFloat(precioSinIva)||0;
   const st=parseInt(stock)??0;
-  const isLive=source==='live';
+  const isLive=source==='live'||source==='live_only';
   const sc=isLive?(st>10?'ok':st>0?'low':'zero'):'na';
   const sl=isLive?(st>10?'✓ En stock':st>0?'⚠ Bajo':'✗ Sin stock'):'—';
-  const badge=isLive
-    ?`<span class="src-badge live"><span class="d"></span>TIEMPO REAL</span>`
-    :`<span class="src-badge offline"><span class="d"></span>SIN CONEXIÓN</span>`;
+  const badge = source==='live'
+    ? `<span class="src-badge live"><span class="d"></span>TIEMPO REAL</span>`
+    : source==='live_only'
+    ? `<span class="src-badge live"><span class="d"></span>SOLO ONLINE</span>`
+    : `<span class="src-badge offline"><span class="d"></span>SIN CONEXIÓN</span>`;
   const tags=[prod.c,prod.r!==prod.c?prod.r:'',prod.l].filter(Boolean);
   const allBc=Array.isArray(prod.b)?prod.b.join(' · '):code;
 
