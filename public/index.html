@@ -160,6 +160,34 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .prog-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s}
 .prog-txt{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap}
 
+/* VENCIMIENTOS */
+.venc-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.venc-item{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s}
+.venc-item:active{background:var(--bg2)}
+.venc-badge{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--mono);flex-shrink:0;text-align:center;line-height:1.2}
+.venc-badge.ok{background:rgba(0,240,160,.1);color:var(--accent)}
+.venc-badge.warn{background:rgba(255,170,0,.12);color:var(--amber)}
+.venc-badge.crit{background:rgba(255,68,102,.12);color:var(--red)}
+.venc-badge.exp{background:rgba(100,100,100,.2);color:var(--text3)}
+.venc-info{flex:1;min-width:0}
+.venc-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.venc-meta{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.venc-del{color:var(--text3);font-size:18px;padding:4px 8px;cursor:pointer}
+
+/* MODAL VENCIMIENTO */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;display:flex;align-items:flex-end}
+.modal-overlay.hidden{display:none}
+.modal-box{background:var(--bg2);border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;margin:0 auto;animation:slideUp2 .25s ease}
+@keyframes slideUp2{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-title{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:700;margin-bottom:4px;letter-spacing:.05em}
+.modal-prod{font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px;line-height:1.3}
+.modal-label{font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.modal-input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--rs);padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:15px;width:100%;outline:none;-webkit-user-select:text;user-select:text;margin-bottom:14px}
+.modal-input:focus{border-color:var(--accent)}
+.modal-btns{display:flex;gap:10px}
+.modal-save{flex:1;background:var(--accent);color:#000;border:none;border-radius:var(--rs);padding:13px;font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer}
+.modal-cancel{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:var(--rs);padding:13px 18px;font-family:var(--mono);font-size:13px;cursor:pointer}
+
 /* TOAST */
 .toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 20px;border-radius:24px;font-size:13px;font-family:var(--mono);opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;z-index:500}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -267,6 +295,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
   </div>
 
+  <!-- VENCIMIENTOS -->
+  <div class="page" id="pgVenc">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase">📅 Vencimientos</div>
+      <div id="vencBadge" style="display:none;background:var(--red);color:#fff;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:20px"></div>
+    </div>
+    <div class="venc-list" id="vencList">
+      <div style="padding:40px 20px;text-align:center;color:var(--text3);font-size:13px">
+        <div style="font-size:44px;margin-bottom:10px">📅</div>
+        Sin vencimientos cargados
+      </div>
+    </div>
+  </div>
+
   <!-- CONFIG -->
   <div class="page" id="pgConfig">
     <div class="cfg-scroll">
@@ -324,8 +366,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
   <div class="nav">
     <div class="nav-item active" id="nScan"    onclick="gotoPage('Scan')"   ><span class="ni">📷</span>Escanear</div>
     <div class="nav-item"        id="nSearch"  onclick="gotoPage('Search')" ><span class="ni">🔍</span>Buscar</div>
-    <div class="nav-item"        id="nHistory" onclick="gotoPage('History')"><span class="ni">🕐</span>Historial</div>
+    <div class="nav-item"        id="nVenc"    onclick="gotoPage('Venc')"   ><span class="ni">📅</span>Vencim.</div>
     <div class="nav-item"        id="nConfig"  onclick="gotoPage('Config')" ><span class="ni">⚙️</span>Config</div>
+  </div>
+</div>
+
+<!-- MODAL VENCIMIENTO -->
+<div class="modal-overlay hidden" id="vencModal" onclick="if(event.target===this) cerrarModal()">
+  <div class="modal-box">
+    <div class="modal-title">📅 CARGAR VENCIMIENTO</div>
+    <div class="modal-prod" id="modalProdNombre">—</div>
+    <div class="modal-label">Fecha de vencimiento (MM/AAAA)</div>
+    <input class="modal-input" id="modalFecha" type="month" placeholder="2027-05">
+    <div class="modal-label">Lote (opcional)</div>
+    <input class="modal-input" id="modalLote" type="text" placeholder="Ej: L015975" autocomplete="off" autocorrect="off" style="-webkit-user-select:text;user-select:text">
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="modal-save" onclick="guardarVencimiento()">💾 Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -700,7 +758,13 @@ async function handleBarcode(code){
   }
 
   showResult('product',code,prod,source,precio,stock,precioSinIva);
-  if(prod) addHistory(prod,code,precio,stock);
+  if(prod){
+    addHistory(prod,code,precio,stock);
+    window._lastProd=prod;
+    window._lastBarcode=code;
+    // Agregar botón de vencimiento después de renderizar
+    setTimeout(()=>addVencBtn(code,prod),50);
+  }
 }
 
 function showResult(type,code,prod,source,precio,stock,precioSinIva){
@@ -801,11 +865,14 @@ function clearHistory(){ if(!confirm('¿Borrar historial?'))return; localStorage
 // NAV
 // ══════════════════════════════════════════
 function gotoPage(name){
-  ['Scan','Search','History','Config'].forEach(p=>{
-    document.getElementById('pg'+p).classList.toggle('active',p===name);
-    document.getElementById('n'+p).classList.toggle('active',p===name);
+  ['Scan','Search','History','Venc','Config'].forEach(p=>{
+    const pg=document.getElementById('pg'+p);
+    const nv=document.getElementById('n'+p);
+    if(pg) pg.classList.toggle('active',p===name);
+    if(nv) nv.classList.toggle('active',p===name);
   });
   if(name==='History') renderHistory();
+  if(name==='Venc')    { renderVenc(); loadVencimientos().then(renderVenc); }
   if(name==='Config')  refreshCfg();
 }
 
@@ -846,6 +913,16 @@ async function iniciarApp(){
   const count=await dbCount();
   if(count===0){ await downloadCatalog(true); await sleep(1000); }
   else{ setLoaderTxt(`✓ ${count.toLocaleString()} PRODUCTOS LISTOS`); await sleep(400); }
+  // Cargar vencimientos en background
+  loadVencimientos().then(()=>{
+    // Mostrar badge en nav si hay alertas
+    const vlist=getVencimientos();
+    const alertas=vlist.filter(v=>diasHasta(v.fecha)<90).length;
+    if(alertas>0){
+      const badge=document.getElementById('vencBadge');
+      if(badge){ badge.style.display='block'; badge.textContent=alertas+' alerta'+(alertas>1?'s':''); }
+    }
+  });
   document.getElementById('loader').classList.add('out');
   setTimeout(()=>document.getElementById('loader').style.display='none',400);
 }
@@ -855,6 +932,195 @@ async function init(){
   if(code){ document.getElementById('actScreen').classList.add('hidden'); await iniciarApp(); }
 }
 init();
+
+// ══════════════════════════════════════════
+// VENCIMIENTOS
+// ══════════════════════════════════════════
+let vencimientos = []; // cache local
+let modalProd = null;  // producto actual en el modal
+
+// Cargar vencimientos desde el servidor
+async function loadVencimientos(){
+  const code = localStorage.getItem('ss_code');
+  if(!code || !navigator.onLine) return;
+  try{
+    const r = await fetch(`/.netlify/functions/vencimientos?code=${code}`);
+    if(r.ok){ vencimientos = await r.json(); localStorage.setItem('ss_venc', JSON.stringify(vencimientos)); }
+  }catch(e){}
+}
+
+// Leer cache local si no hay conexion
+function getVencimientos(){
+  if(vencimientos.length) return vencimientos;
+  try{ return JSON.parse(localStorage.getItem('ss_venc')||'[]'); }catch{ return []; }
+}
+
+// Días hasta vencimiento
+function diasHasta(fecha){
+  // fecha viene como "2027-05" (YYYY-MM)
+  const parts = fecha.split('-');
+  if(parts.length < 2) return 9999;
+  const year = parseInt(parts[0]), month = parseInt(parts[1]);
+  // Último día del mes
+  const vence = new Date(year, month, 0); // día 0 del mes siguiente = último del mes
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  return Math.round((vence - hoy) / (1000*60*60*24));
+}
+
+function fmtFecha(fecha){
+  const parts = fecha.split('-');
+  if(parts.length < 2) return fecha;
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return meses[parseInt(parts[1])-1] + ' ' + parts[0];
+}
+
+function vencBadgeClass(dias){
+  if(dias < 0)   return 'exp';
+  if(dias < 30)  return 'crit';
+  if(dias < 90)  return 'warn';
+  return 'ok';
+}
+
+function vencBadgeText(dias){
+  if(dias < 0)        return 'VENC.';
+  if(dias === 0)      return 'HOY';
+  if(dias < 30)       return dias+'d';
+  if(dias < 90)       return Math.round(dias/30)+'m';
+  return Math.round(dias/30)+'m';
+}
+
+// Renderizar lista de vencimientos
+function renderVenc(){
+  const list = getVencimientos();
+  const el = document.getElementById('vencList');
+  const badge = document.getElementById('vencBadge');
+
+  if(!list.length){
+    el.innerHTML=`<div style="padding:40px 20px;text-align:center;color:var(--text3);font-size:13px"><div style="font-size:44px;margin-bottom:10px">📅</div>Sin vencimientos cargados</div>`;
+    badge.style.display='none';
+    return;
+  }
+
+  // Ordenar por fecha
+  const sorted = [...list].sort((a,b)=> diasHasta(a.fecha) - diasHasta(b.fecha));
+
+  // Contar alertas
+  const alertas = sorted.filter(v=> diasHasta(v.fecha) < 90).length;
+  if(alertas > 0){
+    badge.style.display='block';
+    badge.textContent = alertas + ' alerta' + (alertas>1?'s':'');
+  } else {
+    badge.style.display='none';
+  }
+
+  el.innerHTML = sorted.map(v=>{
+    const dias = diasHasta(v.fecha);
+    const bc = vencBadgeClass(dias);
+    const bt = vencBadgeText(dias);
+    const loteStr = v.lote ? ` · Lote: ${v.lote}` : '';
+    return `<div class="venc-item">
+      <div class="venc-badge ${bc}">${bt}</div>
+      <div class="venc-info">
+        <div class="venc-name">${v.nombre||v.barcode}</div>
+        <div class="venc-meta">Vence: ${fmtFecha(v.fecha)}${loteStr}</div>
+      </div>
+      <div class="venc-del" onclick="eliminarVenc('${v.barcode}','${v.lote||''}')">🗑</div>
+    </div>`;
+  }).join('');
+}
+
+// Abrir modal para cargar vencimiento
+function abrirModal(prod, barcode){
+  modalProd = {prod, barcode};
+  document.getElementById('modalProdNombre').textContent = prod ? prod.n : barcode;
+  document.getElementById('modalFecha').value = '';
+  document.getElementById('modalLote').value = '';
+  document.getElementById('vencModal').classList.remove('hidden');
+}
+
+function cerrarModal(){
+  document.getElementById('vencModal').classList.add('hidden');
+  modalProd = null;
+}
+
+async function guardarVencimiento(){
+  if(!modalProd) return;
+  const fecha = document.getElementById('modalFecha').value;
+  const lote  = document.getElementById('modalLote').value.trim();
+  if(!fecha){ showToast('Ingresá la fecha','er'); return; }
+
+  const code    = localStorage.getItem('ss_code')||'';
+  const barcode = modalProd.barcode;
+  const nombre  = modalProd.prod ? modalProd.prod.n : barcode;
+
+  cerrarModal();
+
+  try{
+    if(navigator.onLine){
+      const r = await fetch(`/.netlify/functions/vencimientos?code=${code}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({barcode, nombre, fecha, lote})
+      });
+      if(r.ok){
+        await loadVencimientos();
+        renderVenc();
+        showToast('✅ Vencimiento guardado','ok');
+      } else {
+        showToast('❌ Error guardando','er');
+      }
+    } else {
+      // Guardar local si no hay conexión
+      const local = getVencimientos();
+      const idx = local.findIndex(v=>v.barcode===barcode&&v.lote===(lote||''));
+      const entry = {barcode,nombre,fecha,lote:lote||'',updated:new Date().toISOString()};
+      if(idx>=0) local[idx]=entry; else local.push(entry);
+      vencimientos = local;
+      localStorage.setItem('ss_venc', JSON.stringify(local));
+      renderVenc();
+      showToast('⚠ Guardado local — sincronizá cuando haya red','');
+    }
+  }catch(e){ showToast('❌ Error: '+e.message,'er'); }
+}
+
+async function eliminarVenc(barcode, lote){
+  if(!confirm('¿Eliminar este vencimiento?')) return;
+  const code = localStorage.getItem('ss_code')||'';
+  try{
+    const r = await fetch(`/.netlify/functions/vencimientos?code=${code}&barcode=${barcode}&lote=${lote}`,{method:'DELETE'});
+    if(r.ok){ await loadVencimientos(); renderVenc(); showToast('Eliminado'); }
+  }catch(e){ showToast('❌ Error','er'); }
+}
+
+// Mostrar botón de vencimiento en el resultado del escaneo
+function addVencBtn(barcode, prod){
+  const content = document.getElementById('resContent');
+  if(!content) return;
+  // Ver si ya tiene vencimiento
+  const vlist = getVencimientos();
+  const existing = vlist.filter(v=>v.barcode===barcode);
+  let vencHtml = '';
+  if(existing.length){
+    existing.forEach(v=>{
+      const dias=diasHasta(v.fecha);
+      const bc=vencBadgeClass(dias);
+      const color=bc==='ok'?'var(--accent)':bc==='warn'?'var(--amber)':bc==='crit'?'var(--red)':'var(--text3)';
+      vencHtml+=`<div style="margin:4px 0;font-family:var(--mono);font-size:11px;color:${color}">⏱ Vence: ${fmtFecha(v.fecha)}${v.lote?' · Lote: '+v.lote:''}</div>`;
+    });
+  }
+  const btnHtml = `
+    <div style="padding:0 0 10px">
+      ${vencHtml}
+      <button onclick="abrirModal(window._lastProd,'${barcode}')"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:var(--rs);padding:9px;font-family:var(--mono);font-size:11px;cursor:pointer;margin-top:6px">
+        📅 ${existing.length?'Actualizar vencimiento':'Cargar vencimiento'}
+      </button>
+    </div>`;
+  // Insertar antes del barcode
+  const bc = content.querySelector('.pcard-bc');
+  if(bc) bc.insertAdjacentHTML('beforebegin', btnHtml);
+}
 </script>
 </body>
 </html>
