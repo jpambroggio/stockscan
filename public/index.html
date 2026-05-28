@@ -382,7 +382,7 @@ async function activar(){
   btn.innerHTML = '<div class="act-spin"></div>';
 
   try{
-    const r = await fetch(`/api/activar?code=${code}`);
+    const r = await fetch(`/.netlify/functions/activar?code=${code}`);
     const d = await r.json();
     if(d.ok){
       localStorage.setItem('ss_code',   d.code);
@@ -497,7 +497,11 @@ function setLoaderProg(p){ document.getElementById('loaderFill').style.width=p+'
 function parseProductoJSON(data, full=false){
   try{
     const p = typeof data === 'string' ? JSON.parse(data) : data;
-    if(!p || p.Baja === true) return null;
+    if(!p || !p.descripcion) return null;
+
+    // Baja puede venir como boolean true o string "true"
+    const baja = p.Baja === true || p.Baja === 'true' || p.baja === true || p.baja === 'true';
+    if(baja) return null;
 
     const base = {
       precio:      parseFloat(p.precio)      || 0,
@@ -509,7 +513,7 @@ function parseProductoJSON(data, full=false){
     // Códigos de barras — puede ser string o array
     const barcodes = Array.isArray(p.codigoBarras)
       ? p.codigoBarras.filter(Boolean)
-      : p.codigoBarras ? [p.codigoBarras] : [];
+      : p.codigoBarras ? [String(p.codigoBarras)] : [];
 
     // Drogas — puede ser string o array
     const drogas = Array.isArray(p.nombresDrogas)
@@ -551,7 +555,7 @@ async function handleBarcode(code){
     if(prod){
       // Producto encontrado en local → consultar precio/stock en tiempo real
       try{
-        const r=await fetch(`/api/stock?code=${farmCode}&id=${prod.i}`,{signal:AbortSignal.timeout(5000)});
+        const r=await fetch(`/.netlify/functions/stock?code=${farmCode}&id=${prod.i}`,{signal:AbortSignal.timeout(5000)});
         if(r.ok){
           const fresh=parseProductoJSON(await r.text());
           if(fresh){ precio=fresh.precio; stock=fresh.stock; precioSinIva=fresh.precioSinIva; source='live'; }
@@ -560,7 +564,7 @@ async function handleBarcode(code){
     } else {
       // No está en local → buscar en API por código de barras (instantáneo)
       try{
-        const r=await fetch(`/api/buscar?code=${farmCode}&barcode=${code}`,{signal:AbortSignal.timeout(8000)});
+        const r=await fetch(`/.netlify/functions/buscar?code=${farmCode}&barcode=${code}`,{signal:AbortSignal.timeout(8000)});
         if(r.ok){
           const fresh=parseProductoJSON(await r.text(), true);
           if(fresh && fresh.nombre){
@@ -573,6 +577,10 @@ async function handleBarcode(code){
     }
   }
 
+  // Si source es live_only pero no tenemos prod, algo falló en el parse
+  if(source==='live_only' && !prod){
+    source='offline';
+  }
   showResult('product',code,prod,source,precio,stock,precioSinIva);
   if(prod) addHistory(prod,code,precio,stock);
 }
